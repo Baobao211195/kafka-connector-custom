@@ -1,0 +1,117 @@
+plugins {
+    id 'base'
+}
+
+ext {
+    kafkaVersion = project.findProperty("kafkaVersion")
+    debeziumVersion = project.findProperty("debeziumVersion")
+    confluentJdbcVersion = project.findProperty("confluentJdbcVersion")
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url "https://packages.confluent.io/maven"
+    }
+}
+
+configurations {
+    kafkaConnectPlugins {
+        attributes {
+            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+            attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+        }
+    }
+}
+
+dependencies {
+    // Debezium connectors
+    kafkaConnectPlugins "io.debezium:debezium-connector-mysql:${debeziumVersion}"
+    kafkaConnectPlugins "io.debezium:debezium-connector-postgres:${debeziumVersion}"
+
+    // Kafka basic connectors
+    kafkaConnectPlugins "org.apache.kafka:connect-file:${kafkaVersion}"
+    kafkaConnectPlugins "org.apache.kafka:connect-json:${kafkaVersion}"
+
+    // JDBC connector
+    kafkaConnectPlugins "io.confluent:kafka-connect-jdbc:${confluentJdbcVersion}"
+}
+
+def pluginDir = "$buildDir/plugins"
+def expandedDir = "$buildDir/plugins-expanded"
+
+
+// =============================
+// STEP 1: COPY RAW JARS
+// =============================
+tasks.register('copyPlugins', Copy) {
+    from configurations.kafkaConnectPlugins
+    into pluginDir
+}
+
+
+// =============================
+// STEP 2: EXPAND (UNZIP)
+// =============================
+tasks.register('expandPlugins', Copy) {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    dependsOn 'copyPlugins'
+
+    from {
+        configurations.kafkaConnectPlugins.collect { file ->
+            file.name.endsWith(".jar") ? zipTree(file) : file
+        }
+    }
+
+    into expandedDir
+}
+
+
+// =============================
+// STEP 3: ORGANIZE BY CONNECTOR
+// =============================
+tasks.register('organizePlugins') {
+
+    dependsOn 'expandPlugins'
+
+    doLast {
+        def base = file(expandedDir)
+
+        def debeziumMysql = new File(base, "debezium-mysql")
+        def debeziumPostgres = new File(base, "debezium-postgres")
+        def jdbc = new File(base, "jdbc")
+
+        debeziumMysql.mkdirs()
+        debeziumPostgres.mkdirs()
+        jdbc.mkdirs()
+
+        base.eachFile { f ->
+            if (f.name.contains("mysql")) {
+                f.renameTo(new File(debeziumMysql, f.name))
+            } else if (f.name.contains("postgres")) {
+                f.renameTo(new File(debeziumPostgres, f.name))
+            } else if (f.name.contains("jdbc")) {
+                f.renameTo(new File(jdbc, f.name))
+            }
+        }
+    }
+}
+
+
+// =============================
+// STEP 4: CLEAN OUTPUT
+// =============================
+tasks.register('preparePlugins') {
+    dependsOn 'organizePlugins'
+}
+
+
+// =============================
+// CLEAN
+// =============================
+tasks.named('clean') {
+    doFirst {
+        delete pluginDir
+        delete expandedDir
+    }
+}
