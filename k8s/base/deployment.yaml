@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-connector-custom
+  labels:
+    app: kafka-connector
+status: {}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-connector
+  template:
+    metadata:
+      labels:
+        app: kafka-connector
+    spec:
+      containers:
+      - name: kafka-connector
+        image: your-registry/kafka-connector-custom:latest
+        ports:
+        - containerPort: 8083
+        envFrom:
+        - configMapRef:
+            name: kafka-connector-config

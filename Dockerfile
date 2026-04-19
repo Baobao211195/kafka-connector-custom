@@ -25,13 +25,8 @@ RUN chown -R appuser:appuser /usr/share/java/plugins
 USER appuser
 
 # config
+# These environment variables are now managed via Kubernetes ConfigMap for easier deployment.
+# See k8s-configmap.yaml for details.
 ENV CONNECT_PLUGIN_PATH="/usr/share/java,/usr/share/java/plugins"
-
-ENV CONNECT_BOOTSTRAP_SERVERS=localhost:9092
-ENV CONNECT_GROUP_ID=connect-cluster
-
-ENV CONNECT_CONFIG_STORAGE_TOPIC=connect-configs
-ENV CONNECT_OFFSET_STORAGE_TOPIC=connect-offsets
-ENV CONNECT_STATUS_STORAGE_TOPIC=connect-status
 
 EXPOSE 8083
